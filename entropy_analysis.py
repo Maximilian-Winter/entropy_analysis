@@ -641,7 +641,6 @@ def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisW
     import glob
 
     generated_ids = generation_results['generated_ids']
-    generated_text = generation_results['generated_text']
     step_analyses = generation_results['step_analyses']
 
     tokenizer = wrapper.tokenizer
