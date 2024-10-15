@@ -638,7 +638,7 @@ def save_metadata(wrapper: BaseEntropyAnalysisWrapper, config: EntropyAnalysisCo
 
 def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisWrapper, folder_name: str, output_html_file: str):
     import os
-    import glob
+    import json
 
     generated_ids = generation_results['generated_ids']
     step_analyses = generation_results['step_analyses']
@@ -660,8 +660,23 @@ def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisW
 
     html_content = ''.join(html_tokens)
 
-    visualization_files = glob.glob(os.path.join(folder_name, '*.png'))
-    visualization_images = ''.join([f'<div class="visualization"><h2>{os.path.basename(vis_file)}</h2><img src="{os.path.basename(vis_file)}" alt="{os.path.basename(vis_file)}"></div>\n' for vis_file in visualization_files])
+    # Prepare data for Plotly charts
+    steps = list(range(1, len(step_analyses) + 1))
+    logits_entropies = [step['logits_entropy'] for step in step_analyses]
+    attention_entropies = [step['attention_entropy'] for step in step_analyses]
+    surprisal_values = [step['surprisal'] for step in step_analyses]
+    max_probabilities = [step['max_probability'] for step in step_analyses]
+    model_states = [step['model_state'] for step in step_analyses]
+
+    # Convert data to JSON for JavaScript
+    chart_data = json.dumps({
+        'steps': steps,
+        'logits_entropies': logits_entropies,
+        'attention_entropies': attention_entropies,
+        'surprisal_values': surprisal_values,
+        'max_probabilities': max_probabilities,
+        'model_states': model_states
+    })
 
     html_page = f"""
     <!DOCTYPE html>
@@ -670,6 +685,7 @@ def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisW
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Generated Text Analysis</title>
+        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
         <style>
             body {{
                 font-family: Arial, sans-serif;
@@ -717,14 +733,10 @@ def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisW
             span:hover {{
                 background-color: #e0f7fa;
             }}
-            .visualization {{
+            .chart {{
+                width: 100%;
+                height: 400px;
                 margin-bottom: 30px;
-            }}
-            .visualization img {{
-                max-width: 100%;
-                height: auto;
-                border-radius: 4px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }}
         </style>
     </head>
@@ -734,11 +746,55 @@ def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisW
             <div id="generated-text">{html_content}</div>
             <div id="tooltip" class="tooltip"></div>
             <h1>Visualizations</h1>
-            <div id="visualizations">
-                {visualization_images}
-            </div>
+            <div id="entropy-chart" class="chart"></div>
+            <div id="surprisal-chart" class="chart"></div>
+            <div id="max-probability-chart" class="chart"></div>
+            <div id="model-states-chart" class="chart"></div>
         </div>
         <script>
+        const chartData = {chart_data};
+
+        // Entropy Over Time
+        Plotly.newPlot('entropy-chart', [
+            {{x: chartData.steps, y: chartData.logits_entropies, type: 'scatter', mode: 'lines+markers', name: 'Logits Entropy'}},
+            {{x: chartData.steps, y: chartData.attention_entropies, type: 'scatter', mode: 'lines+markers', name: 'Attention Entropy'}}
+        ], {{
+            title: 'Entropy Over Time',
+            xaxis: {{title: 'Generation Step'}},
+            yaxis: {{title: 'Entropy'}}
+        }});
+
+        // Surprisal Over Time
+        Plotly.newPlot('surprisal-chart', [
+            {{x: chartData.steps, y: chartData.surprisal_values, type: 'scatter', mode: 'lines+markers', name: 'Surprisal'}}
+        ], {{
+            title: 'Surprisal Over Time',
+            xaxis: {{title: 'Generation Step'}},
+            yaxis: {{title: 'Surprisal'}}
+        }});
+
+        // Max Probability Over Time
+        Plotly.newPlot('max-probability-chart', [
+            {{x: chartData.steps, y: chartData.max_probabilities, type: 'scatter', mode: 'lines+markers', name: 'Max Probability'}}
+        ], {{
+            title: 'Max Probability Over Time',
+            xaxis: {{title: 'Generation Step'}},
+            yaxis: {{title: 'Max Probability'}}
+        }});
+
+        // Model States Over Time
+        Plotly.newPlot('model-states-chart', [
+            {{x: chartData.steps, y: chartData.model_states, type: 'scatter', mode: 'lines+markers', name: 'Model State'}}
+        ], {{
+            title: 'Model States Over Time',
+            xaxis: {{title: 'Generation Step'}},
+            yaxis: {{
+                title: 'Model State',
+                tickvals: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                ticktext: ['Very Uncertain', 'Uncertain', 'Slightly Uncertain', 'Exploring', 'Balanced', 'Focusing', 'Confident', 'Highly Confident', 'Overconfident', 'Very Overconfident']
+            }}
+        }});
+
         const tooltip = document.getElementById('tooltip');
         document.getElementById('generated-text').addEventListener('mouseover', function(e) {{
             if (e.target.tagName.toLowerCase() === 'span') {{
