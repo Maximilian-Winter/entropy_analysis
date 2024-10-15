@@ -1022,7 +1022,7 @@ Which number is bigger 9.11 or 9.9?
 
     os.makedirs(experiment_folder, exist_ok=True)
 
-    for _ in range(25):
+    for _ in range(4):
         generation_results = wrapper.generate_and_analyze(
             generation_input,
             max_length=200,
@@ -1058,4 +1058,3 @@ Which number is bigger 9.11 or 9.9?
             'report.html'
         )
         print(f"Analysis results, visualizations, and metadata saved in folder: {results_folder}")
-    create_combined_report(experiment_folder)
