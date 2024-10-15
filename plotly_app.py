@@ -34,8 +34,22 @@ def create_entropy_over_time_figure(generation_results):
     attention_entropies = [step['attention_entropy'] for step in generation_results['step_analyses']]
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=steps, y=logits_entropies, mode='lines+markers', name='Logits Entropy'))
-    fig.add_trace(go.Scatter(x=steps, y=attention_entropies, mode='lines+markers', name='Attention Entropy'))
+    fig.add_trace(go.Scatter(
+        x=steps,
+        y=logits_entropies,
+        mode='lines+markers',
+        name='Logits Entropy',
+        customdata=steps,
+        hovertemplate='Step: %{customdata}<br>Logits Entropy: %{y:.2f}<extra></extra>'
+    ))
+    fig.add_trace(go.Scatter(
+        x=steps,
+        y=attention_entropies,
+        mode='lines+markers',
+        name='Attention Entropy',
+        customdata=steps,
+        hovertemplate='Step: %{customdata}<br>Attention Entropy: %{y:.2f}<extra></extra>'
+    ))
     fig.update_layout(title='Entropy Over Time', xaxis_title='Generation Step', yaxis_title='Entropy')
     return fig
 
@@ -46,21 +60,22 @@ def create_model_states_figure(generation_results):
     states = [step['model_state'] for step in generation_results['step_analyses']]
 
     state_to_num = {
-        'Very Uncertain': 0,
-        'Uncertain': 1,
-        'Slightly Uncertain': 2,
-        'Exploring': 3,
-        'Balanced': 4,
-        'Focusing': 5,
-        'Confident': 6,
-        'Highly Confident': 7,
-        'Overconfident': 8,
-        'Very Overconfident': 9
+        'Very Uncertain': 0, 'Uncertain': 1, 'Slightly Uncertain': 2, 'Exploring': 3,
+        'Balanced': 4, 'Focusing': 5, 'Confident': 6, 'Highly Confident': 7,
+        'Overconfident': 8, 'Very Overconfident': 9
     }
     numeric_states = [state_to_num.get(state, -1) for state in states]
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=steps, y=numeric_states, mode='lines+markers', name='Model State'))
+    fig.add_trace(go.Scatter(
+        x=steps,
+        y=numeric_states,
+        mode='lines+markers',
+        name='Model State',
+        customdata=steps,
+        hovertemplate='Step: %{customdata}<br>State: %{text}<extra></extra>',
+        text=states
+    ))
     fig.update_layout(title='Model State Over Time', xaxis_title='Generation Step', yaxis_title='Model State',
                       yaxis=dict(tickmode='array', tickvals=list(state_to_num.values()),
                                  ticktext=list(state_to_num.keys())))
@@ -74,8 +89,20 @@ def create_entropy_distribution_figure(generation_results):
 
     fig = make_subplots(rows=1, cols=2,
                         subplot_titles=('Logits Entropy Distribution', 'Attention Entropy Distribution'))
-    fig.add_trace(go.Histogram(x=logits_entropies, nbinsx=20, name='Logits Entropy'), row=1, col=1)
-    fig.add_trace(go.Histogram(x=attention_entropies, nbinsx=20, name='Attention Entropy'), row=1, col=2)
+    fig.add_trace(go.Histogram(
+        x=logits_entropies,
+        nbinsx=20,
+        name='Logits Entropy',
+        customdata=list(range(1, len(logits_entropies) + 1)),
+        hovertemplate='Step: %{customdata}<br>Logits Entropy: %{x:.2f}<extra></extra>'
+    ), row=1, col=1)
+    fig.add_trace(go.Histogram(
+        x=attention_entropies,
+        nbinsx=20,
+        name='Attention Entropy',
+        customdata=list(range(1, len(attention_entropies) + 1)),
+        hovertemplate='Step: %{customdata}<br>Attention Entropy: %{x:.2f}<extra></extra>'
+    ), row=1, col=2)
     fig.update_layout(title='Entropy Distribution', showlegend=False)
     return fig
 
@@ -86,7 +113,14 @@ def create_surprisal_over_time_figure(generation_results):
     surprisal_values = [step['surprisal'] for step in generation_results['step_analyses']]
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=steps, y=surprisal_values, mode='lines+markers', name='Surprisal'))
+    fig.add_trace(go.Scatter(
+        x=steps,
+        y=surprisal_values,
+        mode='lines+markers',
+        name='Surprisal',
+        customdata=steps,
+        hovertemplate='Step: %{customdata}<br>Surprisal: %{y:.2f}<extra></extra>'
+    ))
     fig.update_layout(title='Surprisal Over Time', xaxis_title='Generation Step',
                       yaxis_title='Surprisal (Negative Log Probability)')
     return fig
@@ -100,7 +134,14 @@ def create_entropy_correlation_figure(generation_results):
     correlation = np.corrcoef(logits_entropies, attention_entropies)[0, 1]
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=logits_entropies, y=attention_entropies, mode='markers', name='Entropy Scatter'))
+    fig.add_trace(go.Scatter(
+        x=logits_entropies,
+        y=attention_entropies,
+        mode='markers',
+        name='Entropy Scatter',
+        customdata=list(range(1, len(logits_entropies) + 1)),
+        hovertemplate='Step: %{customdata}<br>Logits Entropy: %{x:.2f}<br>Attention Entropy: %{y:.2f}<extra></extra>'
+    ))
     fig.update_layout(title=f'Logits vs Attention Entropy (Correlation: {correlation:.2f})',
                       xaxis_title='Logits Entropy', yaxis_title='Attention Entropy')
     return fig
@@ -117,8 +158,22 @@ def create_entropy_gradient_figure(generation_results):
     steps = list(range(1, len(logits_gradient) + 1))
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=steps, y=logits_gradient, mode='lines+markers', name='Logits Entropy Gradient'))
-    fig.add_trace(go.Scatter(x=steps, y=attention_gradient, mode='lines+markers', name='Attention Entropy Gradient'))
+    fig.add_trace(go.Scatter(
+        x=steps,
+        y=logits_gradient,
+        mode='lines+markers',
+        name='Logits Entropy Gradient',
+        customdata=steps,
+        hovertemplate='Step: %{customdata}<br>Logits Gradient: %{y:.2f}<extra></extra>'
+    ))
+    fig.add_trace(go.Scatter(
+        x=steps,
+        y=attention_gradient,
+        mode='lines+markers',
+        name='Attention Entropy Gradient',
+        customdata=steps,
+        hovertemplate='Step: %{customdata}<br>Attention Gradient: %{y:.2f}<extra></extra>'
+    ))
     fig.update_layout(title='Entropy Gradient Over Time', xaxis_title='Generation Step', yaxis_title='Entropy Gradient')
     return fig
 
@@ -133,8 +188,22 @@ def create_rolling_entropy_figure(generation_results, window=5):
     rolling_attention = pd.Series(attention_entropies).rolling(window=window).mean().tolist()
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=steps, y=rolling_logits, mode='lines+markers', name='Rolling Logits Entropy'))
-    fig.add_trace(go.Scatter(x=steps, y=rolling_attention, mode='lines+markers', name='Rolling Attention Entropy'))
+    fig.add_trace(go.Scatter(
+        x=steps,
+        y=rolling_logits,
+        mode='lines+markers',
+        name='Rolling Logits Entropy',
+        customdata=steps,
+        hovertemplate='Step: %{customdata}<br>Rolling Logits Entropy: %{y:.2f}<extra></extra>'
+    ))
+    fig.add_trace(go.Scatter(
+        x=steps,
+        y=rolling_attention,
+        mode='lines+markers',
+        name='Rolling Attention Entropy',
+        customdata=steps,
+        hovertemplate='Step: %{customdata}<br>Rolling Attention Entropy: %{y:.2f}<extra></extra>'
+    ))
     fig.update_layout(title=f'Rolling Entropy Over Time (Window = {window})', xaxis_title='Generation Step',
                       yaxis_title='Rolling Entropy')
     return fig
@@ -148,7 +217,12 @@ def create_model_state_distribution_figure(generation_results):
     counts = list(state_counts.values())
 
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=states_list, y=counts))
+    fig.add_trace(go.Bar(
+        x=states_list,
+        y=counts,
+        customdata=states_list,
+        hovertemplate='State: %{customdata}<br>Count: %{y}<extra></extra>'
+    ))
     fig.update_layout(title='Distribution of Model States', xaxis_title='Model State', yaxis_title='Frequency')
     return fig
 
@@ -219,42 +293,40 @@ def create_app(generation_results, metadata, tokenizer):
             Input('entropy-gradient-graph', 'hoverData'),
             Input('rolling-entropy-graph', 'hoverData'),
             Input('entropy-correlation-graph', 'hoverData'),
+            Input('entropy-distribution-graph', 'hoverData'),
+            Input('model-state-distribution-graph', 'hoverData'),
         ],
         State('generated-text', 'children')
     )
     def highlight_token(entropy_hover, model_states_hover, surprisal_hover, gradient_hover, rolling_hover,
-                        correlation_hover, children):
+                        correlation_hover, distribution_hover, state_distribution_hover, children):
         ctx = dash.callback_context
 
         if not ctx.triggered:
             return children
 
         hoverData = None
-        # Determine which graph triggered the callback
         for hover in [entropy_hover, model_states_hover, surprisal_hover, gradient_hover, rolling_hover,
-                      correlation_hover]:
+                      correlation_hover, distribution_hover, state_distribution_hover]:
             if hover is not None:
                 hoverData = hover
                 break
 
         if hoverData is None:
-            # No hover data available
             return children
 
-        # Extract the step number from hoverData
+        # Extract the step number from customdata
         point = hoverData['points'][0]
-        if 'x' in point:
-            point_index = point['x']
+        if 'customdata' in point:
+            token_index = int(point['customdata']) - 1  # Adjust for zero-based index
         else:
-            # For scatter plots with x and y data
-            point_index = point['pointIndex'] + 1  # Adjusting index to match step number
-        token_index = int(point_index) - 1  # Adjust for zero-based index
+            # Fallback to old method if customdata is not available
+            token_index = int(point.get('x', point.get('pointIndex', 0))) - 1
 
         # Reconstruct the children, updating the style
         new_children = []
         for idx, child in enumerate(children):
             if isinstance(child, dict):
-                # Dash may serialize components as dicts
                 child_props = child['props']
                 token_text = child_props['children']
             else:
