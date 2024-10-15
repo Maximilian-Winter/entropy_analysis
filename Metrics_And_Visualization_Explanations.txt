@@ -1,0 +1,42 @@
+Metrics:
+
+1. Logits Entropy:
+   This measures the uncertainty in the model's predictions at each token generation step. Higher entropy indicates more uncertainty or a more uniform distribution of probabilities across the vocabulary.
+
+2. Attention Entropy:
+   This quantifies the spread of attention across input tokens. Higher entropy suggests the model is attending to many tokens, while lower entropy indicates focused attention on fewer tokens.
+
+3. Surprisal:
+   Calculated as the negative log probability of the generated token. It represents how unexpected or "surprising" the chosen token is. Higher surprisal means the token was less expected.
+
+4. Max Probability:
+   The highest probability assigned to any token in the vocabulary. This represents the model's confidence in its top prediction.
+
+5. Model State:
+   A categorization of the model's state based on logits entropy, attention entropy, surprisal, and max probability. States range from "Very Uncertain" to "Very Overconfident."
+
+Visualizations:
+
+1. Entropy Over Time:
+   Shows how logits and attention entropy change during generation. Spikes might indicate moments of uncertainty or exploration.
+
+2. Model States:
+   Displays how the model's state changes over generation steps. This can reveal patterns in the model's confidence and uncertainty.
+
+3. Entropy Distribution:
+   Histograms of logits and attention entropy distributions. These show the overall spread and frequency of different entropy levels.
+
+4. Rolling Entropy:
+   A smoothed version of the entropy over time, which can reveal trends that might be obscured by step-to-step variations.
+
+5. Entropy Gradient:
+   Shows how quickly entropy is changing. Steep gradients might indicate rapid shifts in the model's certainty.
+
+6. Entropy Correlation:
+   Explores the relationship between logits and attention entropy. A strong correlation might suggest these metrics capture similar information.
+
+7. Entropy Thresholds:
+   Indicates when entropy exceeds certain thresholds, potentially highlighting moments of high uncertainty or overconfidence.
+
+8. Surprisal Over Time:
+   Shows how unexpected each generated token is. Spikes could indicate moments where the model makes less predictable choices.
