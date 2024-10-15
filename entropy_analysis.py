@@ -368,30 +368,6 @@ class BaseEntropyAnalysisWrapper(ABC):
         next_token_id = torch.multinomial(probs, num_samples=1)
         return next_token_id
 
-    def visualize_attention(self, attentions: List[torch.Tensor], input_tokens: List[str]) -> None:
-        """
-        Visualize the attention weights as a heatmap.
-
-        Args:
-            attentions: List of attention tensors from the model.
-            input_tokens: List of token strings corresponding to the input.
-        """
-        if not self.config.attention_entropy.enabled:
-            logger.warning("Attention visualization is not enabled in the configuration.")
-            return
-
-        try:
-            last_layer_attn = attentions[-1][0].mean(dim=0).cpu().numpy()  # Shape: [seq_len, seq_len]
-
-            plt.figure(figsize=(10, 8))
-            sns.heatmap(last_layer_attn, xticklabels=input_tokens, yticklabels=input_tokens, cmap='viridis')
-            plt.title('Attention Heatmap')
-            plt.xlabel('Key Positions')
-            plt.ylabel('Query Positions')
-            plt.show()
-        except Exception as e:
-            logger.error(f"Error in attention visualization: {e}", exc_info=True)
-
     def visualize_entropy_over_time(self, generation_results: Dict, folder_name: str):
         if not (self.config.logits_entropy.enabled and self.config.attention_entropy.enabled):
             logger.warning("Logits and attention entropy visualization is not enabled in the configuration.")
@@ -603,7 +579,7 @@ Which number is bigger 9.11 or 9.9?
 <|eot_id|>
 <|start_header_id|>assistant<|end_header_id|>"""
 
-    experiment_folder = "003"
+    experiment_folder = "004"
 
     os.makedirs(experiment_folder, exist_ok=True)
 
