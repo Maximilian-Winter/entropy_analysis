@@ -549,27 +549,6 @@ class BaseEntropyAnalysisWrapper(ABC):
 
         return correlation
 
-    def analyze_entropy_thresholds(self, generation_results: Dict, logits_threshold: float, attention_threshold: float,
-                                   folder_name: str):
-        steps = range(1, len(generation_results['step_analyses']) + 1)
-        logits_entropies = [step['logits_entropy'] for step in generation_results['step_analyses']]
-        attention_entropies = [step['attention_entropy'] for step in generation_results['step_analyses']]
-
-        logits_above_threshold = [1 if e > logits_threshold else 0 for e in logits_entropies]
-        attention_above_threshold = [1 if e > attention_threshold else 0 for e in attention_entropies]
-
-        plt.figure(figsize=(12, 6))
-        plt.step(steps, logits_above_threshold, label='Logits Entropy', where='post')
-        plt.step(steps, attention_above_threshold, label='Attention Entropy', where='post')
-        plt.xlabel('Generation Step')
-        plt.ylabel('Above Threshold')
-        plt.title(f'Entropy Threshold Analysis (Logits: {logits_threshold}, Attention: {attention_threshold})')
-        plt.legend()
-        plt.ylim(-0.1, 1.1)
-        plt.grid(True)
-        plt.savefig(os.path.join(folder_name, 'entropy_thresholds.png'))
-        plt.close()
-
     def visualize_surprisal(self, generation_results: Dict, folder_name: str):
         if not self.config.surprisal.enabled:
             logger.warning("Surprisal visualization is not enabled in the configuration.")
@@ -653,14 +632,12 @@ Which number is bigger 9.11 or 9.9?
         wrapper.visualize_rolling_entropy(generation_results, results_folder)
         wrapper.visualize_entropy_gradient(generation_results, results_folder)
         correlation = wrapper.analyze_entropy_correlation(generation_results, results_folder)
-        wrapper.analyze_entropy_thresholds(generation_results, logits_threshold=2.0, attention_threshold=1.5,
-                                           folder_name=results_folder)
 
         # New visualizations
         wrapper.visualize_surprisal(generation_results, results_folder)
         generate_html_report(
             generation_results,
-            wrapper,
+            wrapper.tokenizer,
             results_folder,
             'report.html'
         )
