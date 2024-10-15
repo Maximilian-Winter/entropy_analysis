@@ -5,10 +5,12 @@ import numpy as np
 import pandas as pd
 from collections import Counter
 
-from dash import Dash, html, dcc
+import dash
+from dash import Dash, html, dcc, Output, Input, State
 
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
+from transformers import AutoTokenizer
 
 
 # Function to load generation results
@@ -151,39 +153,123 @@ def create_model_state_distribution_figure(generation_results):
     return fig
 
 
+# Function to generate text spans with tokens
+def generate_text_spans(generation_results, tokenizer):
+    step_analyses = generation_results['step_analyses']
+    generated_ids = generation_results['generated_ids']
+
+    # Get tokens
+    tokens = tokenizer.convert_ids_to_tokens(generated_ids[0])
+    num_generated_tokens = len(step_analyses)
+    tokens = tokens[-num_generated_tokens:]
+
+    spans = []
+    for idx, token in enumerate(tokens):
+        display_token = tokenizer.convert_tokens_to_string([token])
+        spans.append(html.Span(display_token, id={'type': 'token-span', 'index': idx}, style={'padding': '0 2px'}))
+    return spans
+
+
 # Function to create the Dash app
-def create_app(generation_results, metadata):
+def create_app(generation_results, metadata, tokenizer):
     app = Dash(__name__)
 
     app.layout = html.Div([
         html.H1('Model Generation Metrics Visualization'),
+        html.Div(id='generated-text', children=generate_text_spans(generation_results, tokenizer),
+                 style={'font-size': '18px', 'line-height': '1.5'}),
+        dcc.Store(id='hovered-step', data=-1),
         dcc.Tabs([
             dcc.Tab(label='Entropy Over Time', children=[
-                dcc.Graph(figure=create_entropy_over_time_figure(generation_results))
+                dcc.Graph(id='entropy-over-time-graph', figure=create_entropy_over_time_figure(generation_results))
             ]),
             dcc.Tab(label='Model States Over Time', children=[
-                dcc.Graph(figure=create_model_states_figure(generation_results))
+                dcc.Graph(id='model-states-graph', figure=create_model_states_figure(generation_results))
             ]),
             dcc.Tab(label='Entropy Distribution', children=[
-                dcc.Graph(figure=create_entropy_distribution_figure(generation_results))
+                dcc.Graph(id='entropy-distribution-graph',
+                          figure=create_entropy_distribution_figure(generation_results))
             ]),
             dcc.Tab(label='Surprisal Over Time', children=[
-                dcc.Graph(figure=create_surprisal_over_time_figure(generation_results))
+                dcc.Graph(id='surprisal-over-time-graph', figure=create_surprisal_over_time_figure(generation_results))
             ]),
             dcc.Tab(label='Entropy Correlation', children=[
-                dcc.Graph(figure=create_entropy_correlation_figure(generation_results))
+                dcc.Graph(id='entropy-correlation-graph', figure=create_entropy_correlation_figure(generation_results))
             ]),
             dcc.Tab(label='Entropy Gradient Over Time', children=[
-                dcc.Graph(figure=create_entropy_gradient_figure(generation_results))
+                dcc.Graph(id='entropy-gradient-graph', figure=create_entropy_gradient_figure(generation_results))
             ]),
             dcc.Tab(label='Rolling Entropy Over Time', children=[
-                dcc.Graph(figure=create_rolling_entropy_figure(generation_results))
+                dcc.Graph(id='rolling-entropy-graph', figure=create_rolling_entropy_figure(generation_results))
             ]),
             dcc.Tab(label='Model State Distribution', children=[
-                dcc.Graph(figure=create_model_state_distribution_figure(generation_results))
+                dcc.Graph(id='model-state-distribution-graph',
+                          figure=create_model_state_distribution_figure(generation_results))
             ]),
         ]),
     ])
+
+    # Callback to highlight the corresponding token when hovering over the graphs
+    @app.callback(
+        Output('generated-text', 'children'),
+        [
+            Input('entropy-over-time-graph', 'hoverData'),
+            Input('model-states-graph', 'hoverData'),
+            Input('surprisal-over-time-graph', 'hoverData'),
+            Input('entropy-gradient-graph', 'hoverData'),
+            Input('rolling-entropy-graph', 'hoverData'),
+            Input('entropy-correlation-graph', 'hoverData'),
+        ],
+        State('generated-text', 'children')
+    )
+    def highlight_token(entropy_hover, model_states_hover, surprisal_hover, gradient_hover, rolling_hover,
+                        correlation_hover, children):
+        ctx = dash.callback_context
+
+        if not ctx.triggered:
+            return children
+
+        hoverData = None
+        # Determine which graph triggered the callback
+        for hover in [entropy_hover, model_states_hover, surprisal_hover, gradient_hover, rolling_hover,
+                      correlation_hover]:
+            if hover is not None:
+                hoverData = hover
+                break
+
+        if hoverData is None:
+            # No hover data available
+            return children
+
+        # Extract the step number from hoverData
+        point = hoverData['points'][0]
+        if 'x' in point:
+            point_index = point['x']
+        else:
+            # For scatter plots with x and y data
+            point_index = point['pointIndex'] + 1  # Adjusting index to match step number
+        token_index = int(point_index) - 1  # Adjust for zero-based index
+
+        # Reconstruct the children, updating the style
+        new_children = []
+        for idx, child in enumerate(children):
+            if isinstance(child, dict):
+                # Dash may serialize components as dicts
+                child_props = child['props']
+                token_text = child_props['children']
+            else:
+                child_props = child.props
+                token_text = child.children
+
+            style = child_props.get('style', {}).copy()
+            if idx == token_index:
+                style['backgroundColor'] = 'yellow'
+            else:
+                style['backgroundColor'] = 'transparent'
+
+            new_child = html.Span(token_text, style=style, id=child_props.get('id'))
+            new_children.append(new_child)
+        return new_children
 
     return app
 
@@ -194,5 +280,5 @@ if __name__ == '__main__':
     generation_results = load_generation_results(folder_name)
     metadata = load_metadata(folder_name)
 
-    app = create_app(generation_results, metadata)
+    app = create_app(generation_results, metadata, AutoTokenizer.from_pretrained("meta-llama/Llama-3.2-1B-Instruct"))
     app.run_server(debug=True)
