@@ -1,7 +1,11 @@
 import datetime
-import json
-import os
 from collections import Counter
+
+import os
+import json
+
+import plotly.graph_objs as go
+from plotly.subplots import make_subplots
 
 import pandas as pd
 import torch
@@ -125,7 +129,8 @@ class BaseEntropyAnalysisWrapper(ABC):
         logger.info(
             f"Attention Entropy Thresholds - Low (25th percentile): {self.attn_entropy_thresholds['low']:.4f}, High (75th percentile): {self.attn_entropy_thresholds['high']:.4f}")
 
-    def categorize_state(self, logits_entropy: float, attention_entropy: float, surprisal: float, max_probability: float) -> str:
+    def categorize_state(self, logits_entropy: float, attention_entropy: float, surprisal: float,
+                         max_probability: float) -> str:
         high_logits_entropy = self.logits_entropy_thresholds['high']
         low_logits_entropy = self.logits_entropy_thresholds['low']
         high_attn_entropy = self.attn_entropy_thresholds['high']
@@ -135,7 +140,7 @@ class BaseEntropyAnalysisWrapper(ABC):
         very_high_logits_entropy = high_logits_entropy * 1.5
         very_low_logits_entropy = low_logits_entropy * 0.5
         high_surprisal = 4.0  # log2(16), representing a 1/16 probability
-        low_surprisal = 2.0   # log2(4), representing a 1/4 probability
+        low_surprisal = 2.0  # log2(4), representing a 1/4 probability
         high_max_probability = 0.9
         low_max_probability = 0.3
 
@@ -160,7 +165,6 @@ class BaseEntropyAnalysisWrapper(ABC):
             return 'Focusing'
         else:
             return 'Balanced'
-
 
     @staticmethod
     def top_k_top_p_filtering(logits: torch.Tensor, top_k: int = 0, top_p: float = 0.0,
@@ -461,7 +465,7 @@ class BaseEntropyAnalysisWrapper(ABC):
         plt.xticks(rotation=45, ha='right')
         for bar in bars:
             height = bar.get_height()
-            plt.text(bar.get_x() + bar.get_width()/2., height,
+            plt.text(bar.get_x() + bar.get_width() / 2., height,
                      f'{height}', ha='center', va='bottom')
         plt.tight_layout()
         plt.savefig(os.path.join(folder_name, 'model_states_distribution.png'), dpi=300, bbox_inches='tight')
@@ -589,6 +593,7 @@ class BaseEntropyAnalysisWrapper(ABC):
         plt.savefig(os.path.join(folder_name, 'surprisal_over_time.png'))
         plt.close()
 
+
 class BasicEntropyAnalysisWrapper(BaseEntropyAnalysisWrapper):
     def _load_model(self, model_name: str, device: str) -> AutoModelForCausalLM:
         model = AutoModelForCausalLM.from_pretrained(
@@ -636,7 +641,8 @@ def save_metadata(wrapper: BaseEntropyAnalysisWrapper, config: EntropyAnalysisCo
         json.dump(metadata, f, indent=2)
 
 
-def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisWrapper, folder_name: str, output_html_file: str):
+def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisWrapper, folder_name: str,
+                         output_html_file: str):
     import os
     import json
 
@@ -648,17 +654,21 @@ def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisW
     num_generated_tokens = len(step_analyses)
     tokens = tokens[-num_generated_tokens:]
 
-    html_tokens = []
-    for idx, token in enumerate(tokens):
-        step_analysis = step_analyses[idx]
-        step_analysis['token_idx'] = idx
-        data_attributes = ' '.join([f'data-{key.replace("_", "-")}="{str(value).replace('"', '&quot;')}"' for key, value in step_analysis.items()])
-        display_token = tokenizer.convert_tokens_to_string([token])
-        display_token = display_token.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
-        html_token = f'<span {data_attributes}>{display_token}</span>'
-        html_tokens.append(html_token)
+    def create_html_tokens():
+        html_tokens = []
+        for idx, token in enumerate(tokens):
+            step_analysis = step_analyses[idx]
+            step_analysis['token_idx'] = idx
+            data_attributes = ' '.join(
+                [f'data-{key.replace("_", "-")}="{str(value).replace('"', '&quot;')}"' for key, value in
+                 step_analysis.items()])
+            display_token = tokenizer.convert_tokens_to_string([token])
+            display_token = display_token.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            html_token = f'<span id="token-{idx}" {data_attributes}>{display_token}</span>'
+            html_tokens.append(html_token)
+        return ''.join(html_tokens)
 
-    html_content = ''.join(html_tokens)
+    html_content = create_html_tokens()
 
     # Prepare data for Plotly charts
     steps = list(range(1, len(step_analyses) + 1))
@@ -705,13 +715,15 @@ def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisW
             h1, h2 {{
                 color: #2c3e50;
             }}
-            #generated-text {{
+            .generated-text {{
                 background-color: #f9f9f9;
                 border: 1px solid #e0e0e0;
                 border-radius: 4px;
                 padding: 15px;
                 margin-bottom: 20px;
                 line-height: 1.8;
+                max-height: 200px;
+                overflow-y: auto;
             }}
             .tooltip {{
                 position: absolute;
@@ -738,81 +750,125 @@ def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisW
                 height: 400px;
                 margin-bottom: 30px;
             }}
+            .highlight {{
+                background-color: #ffff00;
+            }}
         </style>
     </head>
     <body>
         <div class="container">
             <h1>Generated Text Analysis</h1>
-            <div id="generated-text">{html_content}</div>
-            <div id="tooltip" class="tooltip"></div>
-            <h1>Visualizations</h1>
+            
+            <h2>Entropy Over Time</h2>
+            <div id="generated-text-entropy" class="generated-text"></div>
             <div id="entropy-chart" class="chart"></div>
+            <div id="tooltip-entropy" class="tooltip"></div>
+
+            <h2>Surprisal Over Time</h2>
+            <div id="generated-text-surprisal" class="generated-text"></div>
             <div id="surprisal-chart" class="chart"></div>
+            <div id="tooltip-surprisal" class="tooltip"></div>
+
+            <h2>Max Probability Over Time</h2>
+            <div id="generated-text-max-probability" class="generated-text"></div>
             <div id="max-probability-chart" class="chart"></div>
+            <div id="tooltip-max-probability" class="tooltip"></div>
+
+            <h2>Model States Over Time</h2>
+            <div id="generated-text-model-states" class="generated-text"></div>
             <div id="model-states-chart" class="chart"></div>
+            <div id="tooltip-model-states" class="tooltip"></div>
         </div>
         <script>
         const chartData = {chart_data};
 
+        function createGeneratedText(divId) {{
+            const container = document.getElementById(divId);
+            container.innerHTML = `{html_content}`;
+        }}
+
+        function highlightToken(index, divId) {{
+            const container = document.getElementById(divId);
+            container.querySelectorAll('span').forEach(span => span.classList.remove('highlight'));
+            const tokenSpan = container.querySelector(`#token-${{index}}`);
+            if (tokenSpan) {{
+                tokenSpan.classList.add('highlight');
+                tokenSpan.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+            }}
+        }}
+
+        function createPlot(divId, xData, yData, name, title, yaxisTitle, textDivId, tooltipId, additionalLayout = {{}}) {{
+            createGeneratedText(textDivId);
+
+            const trace = {{
+                x: xData,
+                y: yData,
+                type: 'scatter',
+                mode: 'lines+markers',
+                name: name,
+                hoverinfo: 'x+y',
+                line: {{shape: 'spline'}},
+            }};
+
+            const layout = {{
+                title: title,
+                xaxis: {{title: 'Generation Step'}},
+                yaxis: {{title: yaxisTitle}},
+                hovermode: 'closest',
+                ...additionalLayout
+            }};
+
+            Plotly.newPlot(divId, [trace], layout);
+
+            document.getElementById(divId).on('plotly_hover', function(data) {{
+                const index = data.points[0].pointIndex;
+                highlightToken(index, textDivId);
+            }});
+
+            const tooltip = document.getElementById(tooltipId);
+            document.getElementById(textDivId).addEventListener('mouseover', function(e) {{
+                if (e.target.tagName.toLowerCase() === 'span') {{
+                    let dataAttributes = e.target.dataset;
+                    let tooltipContent = '<ul>';
+                    for (let key in dataAttributes) {{
+                        tooltipContent += '<li><strong>' + key.replace(/-/g, ' ') + ':</strong> ' + dataAttributes[key] + '</li>';
+                    }}
+                    tooltipContent += '</ul>';
+                    tooltip.innerHTML = tooltipContent;
+                    tooltip.style.display = 'block';
+                    tooltip.style.left = (e.pageX + 15) + 'px';
+                    tooltip.style.top = (e.pageY + 15) + 'px';
+                }}
+            }});
+            document.getElementById(textDivId).addEventListener('mouseout', function(e) {{
+                if (e.target.tagName.toLowerCase() === 'span') {{
+                    tooltip.style.display = 'none';
+                }}
+            }});
+        }}
+
         // Entropy Over Time
-        Plotly.newPlot('entropy-chart', [
-            {{x: chartData.steps, y: chartData.logits_entropies, type: 'scatter', mode: 'lines+markers', name: 'Logits Entropy'}},
-            {{x: chartData.steps, y: chartData.attention_entropies, type: 'scatter', mode: 'lines+markers', name: 'Attention Entropy'}}
-        ], {{
-            title: 'Entropy Over Time',
-            xaxis: {{title: 'Generation Step'}},
-            yaxis: {{title: 'Entropy'}}
+        createPlot('entropy-chart', chartData.steps, chartData.logits_entropies, 'Logits Entropy', 'Entropy Over Time', 'Entropy', 'generated-text-entropy', 'tooltip-entropy');
+        Plotly.addTraces('entropy-chart', {{
+            x: chartData.steps,
+            y: chartData.attention_entropies,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: 'Attention Entropy',
+            line: {{shape: 'spline'}},
         }});
 
         // Surprisal Over Time
-        Plotly.newPlot('surprisal-chart', [
-            {{x: chartData.steps, y: chartData.surprisal_values, type: 'scatter', mode: 'lines+markers', name: 'Surprisal'}}
-        ], {{
-            title: 'Surprisal Over Time',
-            xaxis: {{title: 'Generation Step'}},
-            yaxis: {{title: 'Surprisal'}}
-        }});
+        createPlot('surprisal-chart', chartData.steps, chartData.surprisal_values, 'Surprisal', 'Surprisal Over Time', 'Surprisal', 'generated-text-surprisal', 'tooltip-surprisal');
 
         // Max Probability Over Time
-        Plotly.newPlot('max-probability-chart', [
-            {{x: chartData.steps, y: chartData.max_probabilities, type: 'scatter', mode: 'lines+markers', name: 'Max Probability'}}
-        ], {{
-            title: 'Max Probability Over Time',
-            xaxis: {{title: 'Generation Step'}},
-            yaxis: {{title: 'Max Probability'}}
-        }});
+        createPlot('max-probability-chart', chartData.steps, chartData.max_probabilities, 'Max Probability', 'Max Probability Over Time', 'Max Probability', 'generated-text-max-probability', 'tooltip-max-probability');
 
         // Model States Over Time
-        Plotly.newPlot('model-states-chart', [
-            {{x: chartData.steps, y: chartData.model_states, type: 'scatter', mode: 'lines+markers', name: 'Model State'}}
-        ], {{
-            title: 'Model States Over Time',
-            xaxis: {{title: 'Generation Step'}},
+        createPlot('model-states-chart', chartData.steps, chartData.model_states, 'Model State', 'Model States Over Time', 'Model State', 'generated-text-model-states', 'tooltip-model-states', {{
             yaxis: {{
-                title: 'Model State',
                 tickvals: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
                 ticktext: ['Very Uncertain', 'Uncertain', 'Slightly Uncertain', 'Exploring', 'Balanced', 'Focusing', 'Confident', 'Highly Confident', 'Overconfident', 'Very Overconfident']
-            }}
-        }});
-
-        const tooltip = document.getElementById('tooltip');
-        document.getElementById('generated-text').addEventListener('mouseover', function(e) {{
-            if (e.target.tagName.toLowerCase() === 'span') {{
-                let dataAttributes = e.target.dataset;
-                let tooltipContent = '<ul>';
-                for (let key in dataAttributes) {{
-                    tooltipContent += '<li><strong>' + key.replace(/-/g, ' ') + ':</strong> ' + dataAttributes[key] + '</li>';
-                }}
-                tooltipContent += '</ul>';
-                tooltip.innerHTML = tooltipContent;
-                tooltip.style.display = 'block';
-                tooltip.style.left = (e.pageX + 15) + 'px';
-                tooltip.style.top = (e.pageY + 15) + 'px';
-            }}
-        }});
-        document.getElementById('generated-text').addEventListener('mouseout', function(e) {{
-            if (e.target.tagName.toLowerCase() === 'span') {{
-                tooltip.style.display = 'none';
             }}
         }});
         </script>
@@ -822,7 +878,6 @@ def generate_html_report(generation_results: Dict, wrapper: BaseEntropyAnalysisW
 
     with open(os.path.join(folder_name, output_html_file), 'w', encoding='utf-8') as f:
         f.write(html_page)
-
 
 
 if __name__ == "__main__":
@@ -963,16 +1018,16 @@ Which number is bigger 9.11 or 9.9?
 <|eot_id|>
 <|start_header_id|>assistant<|end_header_id|>"""
 
-    experiment_folder = "001"
+    experiment_folder = "003"
 
     os.makedirs(experiment_folder, exist_ok=True)
 
-    for _ in range(1):
+    for _ in range(25):
         generation_results = wrapper.generate_and_analyze(
             generation_input,
             max_length=200,
-            temperature=0.65,
-            top_p=0.9,  # Added top_p parameter for stochastic sampling
+            temperature=1.0,
+            top_p=1.0,  # Added top_p parameter for stochastic sampling
         )
 
         # Create a timestamped folder for results
@@ -1003,3 +1058,4 @@ Which number is bigger 9.11 or 9.9?
             'report.html'
         )
         print(f"Analysis results, visualizations, and metadata saved in folder: {results_folder}")
+    create_combined_report(experiment_folder)
