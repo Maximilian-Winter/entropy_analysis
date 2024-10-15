@@ -1,13 +1,12 @@
 import os
 import json
-import datetime
+
 import numpy as np
 import pandas as pd
 from collections import Counter
 
-import dash
-from dash import Dash, html, dcc, Output, Input, State
-import plotly.express as px
+from dash import Dash, html, dcc
+
 import plotly.graph_objs as go
 from plotly.subplots import make_subplots
 
